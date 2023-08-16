@@ -8,9 +8,11 @@
 import CoreData
 import UIKit
 
-class ViewController: UITableViewController {
+class ViewController: UITableViewController, UISearchResultsUpdating, UISearchBarDelegate {
+
+    let searchController = UISearchController(searchResultsController: nil)
     var container: NSPersistentContainer!
-    var commitPredicate: NSPredicate?
+    var searchPredicate: NSPredicate?
     var items = [NSManagedObject]()
     var showCommits = true
 
@@ -36,6 +38,18 @@ class ViewController: UITableViewController {
                 print("Unresolved error \(error)")
             }
         }
+
+        searchController.searchResultsUpdater = self
+        searchController.obscuresBackgroundDuringPresentation = false
+        searchController.searchBar.placeholder = "Search by commit message or author"
+//        searchController.searchBar.scopeButtonTitles = ["Name", "Capital"]
+
+        searchController.searchBar.delegate = self
+        searchController.scopeBarActivation = .onTextEntry
+
+        navigationItem.searchController = searchController
+        definesPresentationContext = true
+
 
         NotificationCenter.default.addObserver(self,
                                        selector: #selector(managedObjectContextDidSave),
@@ -64,6 +78,41 @@ class ViewController: UITableViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         loadSavedData()
+    }
+
+    func updateSearchResults(for searchController: UISearchController) {
+        if let searchText = searchController.searchBar.text, searchText.count > 0 {
+            if showCommits {
+                searchPredicate = NSPredicate(format: "message CONTAINS[c] %@", searchText) // [c] is predicate-speak for "case-insensitive"
+
+            } else {
+                searchPredicate = NSPredicate(format: "name CONTAINS[c] %@", searchText)
+            }
+        } else {
+            searchPredicate = nil
+        }
+        loadSavedData()
+    }
+
+    // MARK: UISearchBarDelegate
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+        searchPredicate = nil
+        loadSavedData()
+    }
+
+    // limit text length to 5 characters, see https://stackoverflow.com/questions/433337/
+    func searchBar(_ searchBar: UISearchBar, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool // called before text changes
+    {
+        let currentCharacterCount = searchBar.text?.count ?? 0
+        if range.length + range.location > currentCharacterCount {
+            // Return false if the attempted replacement length > currentCharacterCount.
+            // This occurs after a long string is pasted in but this method prevents the paste,
+            // followed by a shake to undo.
+            // The undo buffer has text that isn't in searchBar.text? so the range will be out of bounds
+            return false
+        }
+        let newLength = currentCharacterCount + text.count - range.length
+        return newLength <= 5
     }
 
     @objc func managedObjectContextDidSave(notification: NSNotification) {
@@ -124,28 +173,28 @@ class ViewController: UITableViewController {
            let ac = UIAlertController(title: "Filter items...", message: nil, preferredStyle: .actionSheet)
 
            ac.addAction(UIAlertAction(title: "Show only fixes", style: .default) { [unowned self] _ in
-               self.commitPredicate = NSPredicate(format: "message CONTAINS[c] 'fix'") // [c] is predicate-speak for "case-insensitive"
+               self.searchPredicate = NSPredicate(format: "message CONTAINS[c] 'fix'") // [c] is predicate-speak for "case-insensitive"
                self.loadSavedData()
            })
 
            ac.addAction(UIAlertAction(title: "Ignore Pull Requests", style: .default) { [unowned self] _ in
-               self.commitPredicate = NSPredicate(format: "NOT message BEGINSWITH 'Merge pull request'")
+               self.searchPredicate = NSPredicate(format: "NOT message BEGINSWITH 'Merge pull request'")
                self.loadSavedData()
            })
 
            ac.addAction(UIAlertAction(title: "Show only recent", style: .default) { [unowned self] _ in
                let twelveHoursAgo = Date().addingTimeInterval(-43200)
-               self.commitPredicate = NSPredicate(format: "date > %@", twelveHoursAgo as NSDate)
+               self.searchPredicate = NSPredicate(format: "date > %@", twelveHoursAgo as NSDate)
                self.loadSavedData()
            })
 
            ac.addAction(UIAlertAction(title: "Show all commits", style: .default) { [unowned self] _ in
-               self.commitPredicate = nil
+               self.searchPredicate = nil
                self.loadSavedData()
            })
 
            ac.addAction(UIAlertAction(title: "Show only Ben Barham commits", style: .default) { [unowned self] _ in
-               self.commitPredicate = NSPredicate(format: "author.name == 'Ben Barham'")
+               self.searchPredicate = NSPredicate(format: "author.name == 'Ben Barham'")
                self.loadSavedData()
            })
 
@@ -154,7 +203,6 @@ class ViewController: UITableViewController {
        }
 
         func loadSavedData() {
-           print("loadSavedData")
             if showCommits {
                 fetchData(entity: Commit.self)
             } else {
@@ -167,7 +215,7 @@ class ViewController: UITableViewController {
             let sort = NSSortDescriptor(key: "date", ascending: false)
             fetchRequest.sortDescriptors = [sort]
             do {
-                fetchRequest.predicate = commitPredicate
+                fetchRequest.predicate = searchPredicate
                 let rows = try container.viewContext.fetch(fetchRequest)
 
                 print("Got \(rows.count) from CoreData")
@@ -175,9 +223,6 @@ class ViewController: UITableViewController {
                 items.removeAll(keepingCapacity: true)
                 for row in rows {
                     if let entity = row as? T {
-//                        let item = ItemViewModel(title: entity.title,
-//                                                 subtitle: entity.subtitle,
-//                                                 entity: entity)
                         items.append(entity)
                     } else {
                         print("could not convert type")
