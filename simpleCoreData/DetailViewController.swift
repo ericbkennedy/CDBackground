@@ -5,25 +5,30 @@
 //  Created by Eric Kennedy on 8/14/23.
 //
 
+import CoreData
 import Foundation
 import UIKit
 
 class DetailViewController: UIViewController, UITextFieldDelegate {
-    var detailItem: ItemViewModel?
+    var detailItem: NSManagedObject?
     @IBOutlet var textField: UITextField!
     @IBOutlet var detailLabel: UILabel!
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        textField.delegate = self
 
-        if let detail = self.detailItem {
-            textField.text = String(detail.title.prefix(50))
-            textField.delegate = self
-            detailLabel.text = detail.subtitle
-            //"\(detail.author.name) \n \(detail.sha) \(detail.date)"
-
-            navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Save", style: .plain, target: self, action: #selector(save))
+        if let commit = detailItem as? Commit {
+            self.textField.text = String(commit.message.prefix(50))
+            detailLabel.text = "By \(commit.author.name) on \(commit.date.description)"
+        } else if let author = detailItem as? Author {
+            self.textField.text = author.name
+            detailLabel.text = author.email
+        } else {
+            print("unknown detail type")
         }
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Save", style: .plain, target: self, action: #selector(save))
+
     }
 
     func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
@@ -40,17 +45,16 @@ class DetailViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc func save() {
-        if var detail = detailItem, let text = textField.text {
-            detail.title = text
-            if let entity = detail.entity as? Commit {
-                entity.message = text
-            } else if let entity = detail.entity as? Author {
-                entity.name = text
+        if let entity = detailItem, let text = textField.text {
+            if let commit = entity as? Commit {
+                commit.message = text
+            } else if let author = entity as? Author {
+                author.name = text
             } else {
                 print("Error: entity could not be downcast to Commit or Author")
             }
             do {
-                try detail.entity.managedObjectContext?.save()
+                try entity.managedObjectContext?.save()
             } catch {
                 print("Error occcured saving \(error)")
             }

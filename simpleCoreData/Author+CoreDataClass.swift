@@ -10,7 +10,7 @@ import Foundation
 import CoreData
 
 @objc(Author)
-public class Author: NSManagedObject, ManagedObjectWithTitleSubtitle {
-    var title: String { name }
-    var subtitle: String { email }
+public class Author: NSManagedObject {
+//    var title: String { name }
+//    var subtitle: String { email }
 }

@@ -10,7 +10,7 @@ import Foundation
 import CoreData
 
 
-public class Commit: NSManagedObject, ManagedObjectWithTitleSubtitle {
-    var title: String { message }
-    var subtitle: String { "By \(author.name) on \(date.description)" }
+public class Commit: NSManagedObject {
+//    var title: String { message }
+//    var subtitle: String { "By \(author.name) on \(date.description)" }
 }

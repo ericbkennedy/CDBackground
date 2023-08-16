@@ -8,25 +8,22 @@
 import CoreData
 import UIKit
 
-protocol ManagedObjectWithTitleSubtitle: NSManagedObject {
-    var title: String { get }
-    var subtitle: String { get }
-}
-
-struct ItemViewModel {
-    var title: String
-    var subtitle: String
-    // var entityID: NSManagedObjectID
-    var entity: NSManagedObject
-}
-
 class ViewController: UITableViewController {
     var container: NSPersistentContainer!
     var commitPredicate: NSPredicate?
-    var items = [ItemViewModel]()
+    var items = [NSManagedObject]()
+    var showCommits = true
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        if let selectedTabTitle = tabBarController?.tabBar.selectedItem?.title {
+            print("tabBarController?.tabBar.selectedItem?.title =", selectedTabTitle)
+        }
+
+        if tabBarController?.selectedIndex == 1 { // Note tabBarItem.tag and tabBar.badgeName appear to be nil
+            showCommits = false
+        }
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Filter", style: .plain, target: self, action: #selector(changeFilter))
 
@@ -46,7 +43,6 @@ class ViewController: UITableViewController {
                                        object: nil) // Note: this needs to be either nil or taskContext
 
         let taskContext = newTaskContext()
-
         Task {
             let newestCommitDate = "" // getNewestCommitDate()
             print("newestCommitDate=", newestCommitDate)
@@ -157,16 +153,16 @@ class ViewController: UITableViewController {
            present(ac, animated: true)
        }
 
-        func loadSavedData(isCommit: Bool = false) {
+        func loadSavedData() {
            print("loadSavedData")
-            if isCommit {
+            if showCommits {
                 fetchData(entity: Commit.self)
             } else {
                 fetchData(entity: Author.self)
             }
        }
 
-        func fetchData<T: ManagedObjectWithTitleSubtitle>(entity: T.Type) {
+        func fetchData<T: NSManagedObject>(entity: T.Type) {
             let fetchRequest = T.fetchRequest()
             let sort = NSSortDescriptor(key: "date", ascending: false)
             fetchRequest.sortDescriptors = [sort]
@@ -179,10 +175,10 @@ class ViewController: UITableViewController {
                 items.removeAll(keepingCapacity: true)
                 for row in rows {
                     if let entity = row as? T {
-                        let item = ItemViewModel(title: entity.title,
-                                                 subtitle: entity.subtitle,
-                                                 entity: entity)
-                        items.append(item)
+//                        let item = ItemViewModel(title: entity.title,
+//                                                 subtitle: entity.subtitle,
+//                                                 entity: entity)
+                        items.append(entity)
                     } else {
                         print("could not convert type")
                     }
@@ -204,13 +200,23 @@ class ViewController: UITableViewController {
        override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
            let index = indexPath.row
 
-           let cell = tableView.dequeueReusableCell(withIdentifier: "Commit", for: indexPath)
+           let cellID = showCommits ? "Commit" : "Author"
+
+           let cell = tableView.dequeueReusableCell(withIdentifier: cellID, for: indexPath)
            var config = cell.defaultContentConfiguration()
 
            if index < items.count {
                let item = items[index]
-               config.text = item.title
-               config.secondaryText = item.subtitle
+               if let commit = item as? Commit {
+                   config.text = commit.message
+                   config.secondaryText = "By \(commit.author.name) on \(commit.date.description)"
+               } else if let author = item as? Author {
+                   config.text = author.name
+                   config.secondaryText = author.email
+               }
+
+//               config.text = item.title
+//               config.secondaryText = item.subtitle
            }
            cell.contentConfiguration = config
            return cell
@@ -226,7 +232,7 @@ class ViewController: UITableViewController {
        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
            if editingStyle == .delete {
                let item = items[indexPath.row]
-               container.viewContext.delete(item.entity)
+               container.viewContext.delete(item)
                items.remove(at: indexPath.row)
                tableView.deleteRows(at: [indexPath], with: .fade)
 
