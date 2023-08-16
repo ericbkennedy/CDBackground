@@ -41,12 +41,13 @@ class DetailViewController: UIViewController, UITextFieldDelegate {
 
     @objc func save() {
         if var detail = detailItem, let text = textField.text {
-            print("before save", detail.title, text)
+            detail.title = text
             if let entity = detail.entity as? Commit {
                 entity.message = text
-                detail.title = text
+            } else if let entity = detail.entity as? Author {
+                entity.name = text
             } else {
-                print("other kind of entity")
+                print("Error: entity could not be downcast to Commit or Author")
             }
             do {
                 try detail.entity.managedObjectContext?.save()

@@ -115,6 +115,7 @@ class ViewController: UITableViewController {
             let author = Author(context: taskContext)
             author.name = githubCommit.commit.author.name
             author.email = githubCommit.commit.author.email
+            author.date = commit.date // already formatted
             commitAuthor = author
         }
 
@@ -156,9 +157,13 @@ class ViewController: UITableViewController {
            present(ac, animated: true)
        }
 
-       func loadSavedData() {
+        func loadSavedData(isCommit: Bool = false) {
            print("loadSavedData")
-           fetchData(entity: Commit.self)
+            if isCommit {
+                fetchData(entity: Commit.self)
+            } else {
+                fetchData(entity: Author.self)
+            }
        }
 
         func fetchData<T: ManagedObjectWithTitleSubtitle>(entity: T.Type) {
